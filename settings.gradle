@@ -1,0 +1,3 @@
+rootProject.name = 'vectorforge'
+include 'storage-engine', 'vector-index', 'cluster', 'api', 'shard-node', 'benchmark', 'client-sdk'
+
