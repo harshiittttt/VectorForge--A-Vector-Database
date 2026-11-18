@@ -33,7 +33,7 @@ VectorForge implements approximate nearest-neighbor search using a custom HNSW i
 | Distributed Systems | Consistent Hashing, Replication, Quorum Writes |
 | Communication | HTTP/JSON |
 
-## Benchmark
+## Benchmark (11,000 Documents)
 
 | Metric | Result |
 |---|---:|
