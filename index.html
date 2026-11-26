@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VectorForge: a distributed vector database in Java</title>
+<meta name="description" content="A distributed vector database built from scratch in Java: custom HNSW index, WAL and LSM storage, consistent hashing and replication. Setup and usage guide.">
+<style>
+:root{--ink:#15231d;--paper:#f3f3eb;--card:#fbfbf6;--lime:#d9f36b;--muted:#5b6a61;--line:#dcded2}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:inherit}
+.wrap{max-width:920px;margin:0 auto;padding:0 20px}
+nav{position:sticky;top:0;background:var(--ink);color:#fff;z-index:2}
+nav .wrap{display:flex;gap:20px;flex-wrap:wrap;padding-top:12px;padding-bottom:12px;align-items:center}
+nav a{text-decoration:none;font-size:14px}
+nav a:first-child{font-weight:700;margin-right:auto}
+header{background:var(--ink);color:#fff;padding:64px 0 56px}
+h1{font-size:clamp(34px,6vw,56px);line-height:1.1;margin:0 0 16px}
+h1 span{color:var(--lime)}
+header p{max-width:620px;color:#cfd8d2;font-size:18px}
+.btn{display:inline-block;padding:11px 20px;border-radius:6px;text-decoration:none;font-weight:600;margin:8px 8px 0 0;border:1px solid var(--lime)}
+.btn.primary{background:var(--lime);color:var(--ink)}
+section{padding:48px 0;border-bottom:1px solid var(--line)}
+h2{font-size:28px;margin:0 0 16px}
+h3{margin:28px 0 8px;font-size:18px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:18px}
+.card h3{margin-top:0}
+.card p{margin:0;color:var(--muted)}
+img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:8px;display:block}
+figure{margin:20px 0}
+figcaption{color:var(--muted);font-size:14px;margin-top:6px}
+.pre{position:relative;margin:10px 0}
+pre{background:var(--ink);color:#e8efe9;padding:16px 70px 16px 16px;border-radius:8px;overflow-x:auto;font-size:13.5px;margin:0}
+code{font-family:ui-monospace,Consolas,monospace}
+p code,li code,td code{background:#e6e8dc;padding:1px 5px;border-radius:4px;font-size:.9em}
+.copy{position:absolute;top:8px;right:8px;background:var(--lime);border:0;border-radius:4px;padding:4px 10px;font-size:12px;cursor:pointer}
+.note{background:#fff6d6;border-left:4px solid #d9a400;padding:12px 16px;border-radius:4px}
+table{border-collapse:collapse;width:100%;background:var(--card)}
+td,th{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+details{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px;margin:8px 0}
+summary{cursor:pointer;font-weight:600}
+footer{padding:28px 0;color:var(--muted);font-size:14px}
+@media(max-width:600px){pre{padding:44px 16px 16px}}
+</style>
+</head>
+<body>
+<nav><div class="wrap">
+  <a href="#top">VectorForge</a>
+  <a href="#how">How it works</a><a href="#setup">Setup</a><a href="#use">Usage</a><a href="#help">Troubleshooting</a>
+</div></nav>
+
+<header id="top"><div class="wrap">
+  <h1>Vector<span>Forge</span></h1>
+  <p>A distributed vector database built from scratch in Java. Search text by meaning across three shard processes, with a custom HNSW index and its own durable storage engine.</p>
+  <a class="btn primary" href="#setup">Run it on your machine</a>
+  <a class="btn" href="https://github.com/harshiittttt/VectorForge--A-Vector-Database">Source code</a>
+</div></header>
+
+<main class="wrap">
+<section>
+  <h2>What's inside</h2>
+  <div class="grid">
+    <div class="card"><h3>Custom HNSW</h3><p>Approximate nearest-neighbor search, with an exact brute-force baseline to measure recall against.</p></div>
+    <div class="card"><h3>Durable storage</h3><p>Write-Ahead Log recovery, Memtable flushing, SSTables, Bloom filters and compaction.</p></div>
+    <div class="card"><h3>Distribution</h3><p>Consistent hashing with virtual nodes, two copies of each document and quorum writes.</p></div>
+    <div class="card"><h3>Parallel queries</h3><p>Each query goes to all shards, and the results are merged into one global Top-K.</p></div>
+    <div class="card"><h3>In-browser embeddings</h3><p>Transformers.js runs <code>all-MiniLM-L6-v2</code> in your browser. No API key is needed.</p></div>
+    <div class="card"><h3>React dashboard</h3><p>Cluster health, semantic search, document management and live benchmarks.</p></div>
+  </div>
+  <figure><img src="assets/overview.jpg" alt="VectorForge overview dashboard showing three healthy shards"><figcaption>Overview tab with 300 sample documents loaded (600 stored copies).</figcaption></figure>
+</section>
+
+<section id="how">
+  <h2>How it works</h2>
+  <p>The browser turns text into vectors. The Java coordinator places each vector on two shards using a hash ring. A search fans out to every shard and merges the answers. Document text stays in your browser (IndexedDB), while the shards store the vectors. The services talk over HTTP/JSON.</p>
+  <figure><img src="assets/architecture.png" alt="Architecture: client, API gateway, coordinator, hash ring, three shard nodes, Top-K merge"><figcaption>System design.</figcaption></figure>
+</section>
+
+<section id="setup">
+  <h2>Set it up on your machine</h2>
+  <p>You need <strong>Git</strong>, <strong>JDK 21 or newer</strong> (<code>java</code> and <code>javac</code> on your PATH), <strong>Node.js 18 or newer</strong> with npm, and an internet connection for the first run. The ports <code>5173</code>, <code>8080</code> and <code>9101</code> to <code>9103</code> must be free.</p>
+  <p class="note">The commands below are for Windows PowerShell. The services have no authentication and listen on your network, so run them only on a network you trust.</p>
+
+  <h3>1. Download the code</h3>
+  <div class="pre"><pre><code>git clone https://github.com/harshiittttt/VectorForge--A-Vector-Database.git
+cd VectorForge--A-Vector-Database</code></pre></div>
+
+  <h3>2. Start with an empty database</h3>
+  <p>Do this once, right after cloning. The repository includes old saved vectors whose text is not included, so search results would appear blank. This command renames that folder and keeps it as a backup.</p>
+  <div class="pre"><pre><code>Rename-Item data data-original</code></pre></div>
+
+  <h3>3. Start everything</h3>
+  <p><strong>Quick way (Windows):</strong> run the included launcher. It compiles the Java code, installs the frontend packages if needed, opens each service in its own window and opens the dashboard. It also stops VectorForge services that don't match its setup.</p>
+  <div class="pre"><pre><code>.\START_VECTORFORGE.bat</code></pre></div>
+
+  <details>
+    <summary>Manual way: five terminals</summary>
+    <p>Open every terminal in the project folder. First, compile and install:</p>
+    <div class="pre"><pre><code>$sources = Get-ChildItem api,cluster,shard-node,storage-engine,vector-index,benchmark,client-sdk -Recurse -Filter *.java -File |
+  Where-Object { $_.FullName -match '\\src\\main\\java\\' } |
+  ForEach-Object { $_.FullName }
+New-Item -ItemType Directory -Force .dist\javac-classes | Out-Null
+javac --add-modules jdk.httpserver,jdk.incubator.vector -d .dist\javac-classes $sources
+cd frontend; npm install; cd ..</code></pre></div>
+    <p>A warning about the incubator module is expected. Then start the three shards, one per terminal.</p>
+    <div class="pre"><pre><code>java '--add-modules' 'jdk.httpserver,jdk.incubator.vector' -cp .dist/javac-classes com.vectorforge.shardnode.ShardNodeGateway 9101 data\process-shard-1</code></pre></div>
+    <div class="pre"><pre><code>java '--add-modules' 'jdk.httpserver,jdk.incubator.vector' -cp .dist/javac-classes com.vectorforge.shardnode.ShardNodeGateway 9102 data\process-shard-2</code></pre></div>
+    <div class="pre"><pre><code>java '--add-modules' 'jdk.httpserver,jdk.incubator.vector' -cp .dist/javac-classes com.vectorforge.shardnode.ShardNodeGateway 9103 data\process-shard-3</code></pre></div>
+    <p>When all three say they have started, run the coordinator in a fourth terminal:</p>
+    <div class="pre"><pre><code>java '--add-modules' 'jdk.httpserver,jdk.incubator.vector' '-Dvectorforge.remoteShards=http://localhost:9101,http://localhost:9102,http://localhost:9103' -cp .dist/javac-classes com.vectorforge.api.http.HttpGateway</code></pre></div>
+    <p>In a fifth terminal, start the dashboard:</p>
+    <div class="pre"><pre><code>cd frontend; npm run dev</code></pre></div>
+  </details>
+
+  <details>
+    <summary>macOS or Linux (not tested on these systems)</summary>
+    <p>Rename the old data, compile and install:</p>
+    <div class="pre"><pre><code>mv data data-original
+mkdir -p .dist/javac-classes
+javac --add-modules jdk.httpserver,jdk.incubator.vector -d .dist/javac-classes $(find . -name '*.java' -path '*/src/main/java/*')
+(cd frontend &amp;&amp; npm install)</code></pre></div>
+    <p>Then use the five commands from the manual way, replacing <code>\</code> with <code>/</code> in the data paths.</p>
+  </details>
+
+  <h3>4. Open the dashboard</h3>
+  <p>Go to <a href="http://localhost:5173">http://localhost:5173</a>. The header should say the coordinator is connected, and the overview should show <strong>03 / 03</strong> active shards. This link works only while VectorForge is running on your computer.</p>
+</section>
+
+<section id="use">
+  <h2>How to use it</h2>
+  <h3>Add documents</h3>
+  <ol>
+    <li>Open <strong>Documents</strong>.</li>
+    <li>To add one document, paste its text and click <strong>Embed &amp; index</strong>.</li>
+    <li>To add many, choose a TXT file (one document per line) or a CSV with a <code>text</code> column, then click <strong>Start ingest</strong>.</li>
+  </ol>
+  <p>The repository includes sample news in <code>raw_data[News_articles]</code>. The file <code>ag_news_10000.txt</code> has about 10,000 lines. In our test, 300 lines took under a minute, so expect the full file to take around 15 minutes or more, depending on your computer. To try it quickly, make a 300-line sample:</p>
+  <div class="pre"><pre><code>Get-Content -LiteralPath 'raw_data[News_articles]\ag_news_10000.txt' -TotalCount 300 -Encoding UTF8 | Set-Content sample-300.txt -Encoding UTF8</code></pre></div>
+  <p>The first embedding downloads the model, which your browser then caches.</p>
+
+  <h3>Search by meaning</h3>
+  <p>Open <strong>Search</strong>, type a phrase such as <em>oil prices and the stock market</em>, and click <strong>Search cluster</strong>. A lower distance means a closer match. <strong>Top K</strong> sets how many results you get. A higher <strong>ef search</strong> value examines more candidates, which can improve recall but may take longer.</p>
+  <figure><img src="assets/search.jpg" alt="Search results about oil prices and stocks"><figcaption>Results from the 300-document sample.</figcaption></figure>
+
+  <h3>Benchmark</h3>
+  <p>Open <strong>Benchmark</strong> and click <strong>Run benchmark</strong> to compare HNSW with exact search for recall and response time. The project's reported results on 11,000 documents:</p>
+  <table>
+    <tr><th>Exact search latency</th><td>19.26 ms per query</td></tr>
+    <tr><th>Best Recall@K</th><td>99%</td></tr>
+    <tr><th>Best observed speedup</th><td>4.77×</td></tr>
+    <tr><th>Test settings</th><td>20 queries, K = 5</td></tr>
+  </table>
+  <p>Your numbers will differ with your hardware and data. With only a few hundred documents, HNSW may be no faster than exact search.</p>
+
+  <h3>Stop and restart</h3>
+  <p>Press <strong>Ctrl+C</strong> in each service window. Your data stays in the <code>data</code> folder and is restored from the Write-Ahead Log at the next start. Use the same browser, because it holds the document text. Don't repeat step 2 unless you want to start empty again.</p>
+</section>
+
+<section id="help">
+  <h2>Troubleshooting</h2>
+  <table>
+    <tr><th>Problem</th><th>What to do</th></tr>
+    <tr><td>Results say the text is not in the local cache</td><td>The vectors were added from another browser, or came from the old <code>data</code> folder. Use the original browser, or stop the services, move <code>data</code> elsewhere and add the documents again.</td></tr>
+    <tr><td>Dashboard shows offline or unhealthy shards</td><td>Start all three shards first, wait for recovery to finish, then start the coordinator.</td></tr>
+    <tr><td>Port already in use</td><td>Stop the program using that port, then start again.</td></tr>
+    <tr><td><code>javac</code> is not recognized</td><td>Install JDK 21 or newer and add its <code>bin</code> folder to PATH.</td></tr>
+  </table>
+</section>
+</main>
+
+<footer><div class="wrap">Built by <a href="https://github.com/harshiittttt">Harshit Gangwar</a>.</div></footer>
+
+<script>
+document.querySelectorAll('.pre').forEach(box => {
+  const button = document.createElement('button');
+  button.className = 'copy';
+  button.textContent = 'Copy';
+  button.onclick = () => navigator.clipboard.writeText(box.querySelector('code').textContent)
+    .then(() => button.textContent = 'Copied', () => button.textContent = 'Select text')
+    .finally(() => setTimeout(() => button.textContent = 'Copy', 1500));
+  box.appendChild(button);
+});
+</script>
+</body>
+</html>
